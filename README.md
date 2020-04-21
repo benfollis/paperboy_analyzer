@@ -1,2 +1,2 @@
-# paperboy_fetcher
-Python binary that fetches a url and extracts text from it
+# paperboy_analyzer
+Python binary that extracts articles from raw rss downloads gathered by paperboy_fetcher

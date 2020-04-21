@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+import argparse
+import json
+import pathlib
+from paperboy_fetcher.fetchers import http
+from paperboy_fetcher.rss import nice_parser
+from paperboy_fetcher.rss import CNN as cnn_parser
+from paperboy_fetcher.extractors import CNN, BBC, NYT, WAPO
+import hashlib
+
+arg_parser = argparse.ArgumentParser(description='Text Extractor for articles grabbed by the paperboy_fetcher application')
+arg_parser.add_argument('--input', type=str, default='/tmp/paperboy_fetcher', help='the location of the top level directory created by the fetcher')
+arg_parser.add_argument('--output', type=str, default='/tmp/paperboy_analyzer', help='the output directory to store extracted articles in')
+
+
+def get_extractor(type):
+    if type == 'CNN':
+        return CNN
+    if type == 'BBC':
+        return BBC
+    if type == 'WAPO':
+        return WAPO
+    if type == 'NYT':
+        return NYT
+
+
+def get_providers_with_path(input_path):
+    providers = []
+    for candidate in input_path.iterdir():
+        if candidate.is_dir:
+            providers.append({ 'name': candidate.name, 'path': candidate})
+    return providers
+
+def extract_article(input_path, output_path, provider_type):
+    extractor = get_extractor(provider_type)
+    extracted = None
+    try:
+        with open(input_path, 'r') as input_file:
+            raw_article = json.load(input_file)
+        link = raw_article['link']
+        content = raw_article['content']
+        # the extractor will give me title and text
+        extracted = extractor.extract_article(content)
+        extracted['link'] = link  # augment with the link so we have that data available in the ML layer
+    except:
+        print("Unable to parse article from " + type + " with link " + link)
+    if extracted is not None:
+        with open(output_path, 'w') as output_file:
+            json.dump(extracted, output_file)
+        print("Saved article from " + type + " with link " + link)
+
+
+def extract_provider(output_path, provider):
+    # we're only going to support the two level layout right now
+    # eg. ProviderName/feedname/articles. We won't have subfeeds of feeds
+    provider_name = provider['name']
+    provider_input = provider['path']
+    provider_base_output = output_path.joinpath(provider_name)
+    for candidate_feed in provider_input.iterdir():
+        if candidate_feed.is_dir():
+            feed_base_output = provider_base_output.joinpath(candidate_feed.name)
+            for candidate_article in candidate_feed.iterdir():
+                if candidate_article.is_file():
+                    output_name = 'extracted_' + candidate_article.name
+                    output_file = feed_base_output.joinpath(output_name)
+                    extract_article(candidate_article, output_file, provider_name)
+
+
+def extract_articles(input_path, output_path):
+    # currently, the direct children of the input
+    # directory map to the provider names
+    # which in turn is how we get extractors
+    providers = get_providers_with_path(input_path)
+    for provider in providers:
+        extract_provider(output_path, provider)
+
+
+if __name__ == '__main__': # which it will:
+    args = arg_parser.parse_args()
+    args_dict = vars(args)
+    # parse the config file
+    output_dir = args_dict['output']
+    input_dir = args_dict['input']
+    # now make the output dir
+    output_path = pathlib.Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
+    input_path = pathlib.Path(input_dir)
+    extract_articles(input_dir, output_dir)

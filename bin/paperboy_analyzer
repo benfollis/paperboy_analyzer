@@ -31,6 +31,7 @@ def get_providers_with_path(input_path):
             providers.append({ 'name': candidate.name, 'path': candidate})
     return providers
 
+
 def extract_article(input_path, output_path, provider_type):
     extractor = get_extractor(provider_type)
     extracted = None
@@ -38,16 +39,16 @@ def extract_article(input_path, output_path, provider_type):
         with open(input_path, 'r') as input_file:
             raw_article = json.load(input_file)
         link = raw_article['link']
-        content = raw_article['content']
+        content = raw_article['body']
         # the extractor will give me title and text
         extracted = extractor.extract_article(content)
         extracted['link'] = link  # augment with the link so we have that data available in the ML layer
     except:
-        print("Unable to parse article from " + type + " with link " + link)
+        print("Unable to parse article from " + provider_type + " with link " + link)
     if extracted is not None:
         with open(output_path, 'w') as output_file:
             json.dump(extracted, output_file)
-        print("Saved article from " + type + " with link " + link)
+        print("Saved article from " + provider_type + " with link " + link)
 
 
 def extract_provider(output_path, provider):
@@ -59,6 +60,7 @@ def extract_provider(output_path, provider):
     for candidate_feed in provider_input.iterdir():
         if candidate_feed.is_dir():
             feed_base_output = provider_base_output.joinpath(candidate_feed.name)
+            feed_base_output.mkdir(parents=True, exist_ok=True)
             for candidate_article in candidate_feed.iterdir():
                 if candidate_article.is_file():
                     output_name = 'extracted_' + candidate_article.name
@@ -85,4 +87,4 @@ if __name__ == '__main__': # which it will:
     output_path = pathlib.Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     input_path = pathlib.Path(input_dir)
-    extract_articles(input_dir, output_dir)
+    extract_articles(input_path, output_path)
